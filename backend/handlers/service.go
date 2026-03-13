@@ -136,6 +136,12 @@ func UpdateService(c *gin.Context) {
 	now := time.Now()
 	if newStatus, hasStatus := input["status"]; hasStatus {
 		if newStatus == "Reviewing" && oldStatus != "Reviewing" {
+			// Validate EPID is provided
+			epid, hasEpid := input["epid"].(string)
+			if !hasEpid || epid == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "data": nil, "error": "EPID is mandatory when sending for review"})
+				return
+			}
 			input["reviewed_at"] = now
 		}
 		if newStatus == "Closed" && oldStatus != "Closed" {

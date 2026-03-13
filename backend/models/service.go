@@ -8,6 +8,7 @@ type Service struct {
 	ID         string     `gorm:"primaryKey;type:varchar(20)" json:"id"`
 	PersonID   string     `gorm:"not null;index" json:"person_id"`
 	Type       string     `gorm:"not null" json:"type"` // Khata, e-Khata, Khata Transfer, EC
+	EPID       string     `gorm:"type:varchar(50)" json:"epid"`
 	Status     string     `gorm:"default:'Work Initiated'" json:"status"`
 	TotalFee   float64    `gorm:"not null;default:0" json:"total_fee"`
 	Agent      string     `json:"agent"`

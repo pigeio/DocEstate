@@ -8,6 +8,8 @@ const Services = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Work Initiated');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEpidModal, setShowEpidModal] = useState(false);
+  const [selectedServiceForReview, setSelectedServiceForReview] = useState(null);
   const [filterType, setFilterType] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -42,17 +44,29 @@ const Services = () => {
     fetchPeople();
   }, []);
 
-  const updateStatus = async (id, currentStatus) => {
+  const updateStatus = async (id, currentStatus, epid = null) => {
     let newStatus = '';
-    if (currentStatus === 'Work Initiated') newStatus = 'Reviewing';
+    if (currentStatus === 'Work Initiated') {
+      if (!epid) {
+        setSelectedServiceForReview(id);
+        setShowEpidModal(true);
+        return;
+      }
+      newStatus = 'Reviewing';
+    }
     else if (currentStatus === 'Reviewing') newStatus = 'Closed';
     else if (currentStatus === 'Closed') newStatus = 'Work Initiated'; // Reopen
 
     setErrorMsg('');
     try {
-      const res = await api.put(`/services/${id}`, { status: newStatus });
+      const payload = { status: newStatus };
+      if (epid) payload.epid = epid;
+
+      const res = await api.put(`/services/${id}`, payload);
       if (res.data.success) {
         fetchServices();
+        setShowEpidModal(false);
+        setSelectedServiceForReview(null);
       } else {
         setErrorMsg(res.data.error || 'Failed to update status');
       }
@@ -135,7 +149,7 @@ const Services = () => {
               <tr>
                 <th className="table-header">Service ID</th>
                 <th className="table-header">Person</th>
-                <th className="table-header">Type</th>
+                <th className="table-header">Type & EPID</th>
                 <th className="table-header">Agent</th>
                 <th className="table-header">Filed Date</th>
                 {activeTab === 'Reviewing' && <th className="table-header">Time in Review</th>}
@@ -155,7 +169,10 @@ const Services = () => {
                       {srv.Person?.name} <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-500 ml-1">({srv.person_id})</span>
                     </td>
                     <td className="table-cell">
-                      <span className="bg-zinc-100 font-bold text-zinc-800 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 px-2 py-1 rounded text-xs border dark:border-zinc-700">{srv.type}</span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="bg-zinc-100 font-bold text-zinc-800 border-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 px-2 py-1 rounded text-xs border dark:border-zinc-700">{srv.type}</span>
+                        {srv.epid && <span className="bg-blue-100 font-mono text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded text-[10px] border dark:border-blue-800">EPID: {srv.epid}</span>}
+                      </div>
                     </td>
                     <td className="table-cell font-semibold text-zinc-900 dark:text-zinc-400">{srv.agent || '-'}</td>
                     <td className="table-cell font-medium text-zinc-800 dark:text-zinc-400">{formatDate(srv.filed_at || srv.created_at)}</td>
@@ -193,6 +210,15 @@ const Services = () => {
           </table>
         </div>
       </div>
+      {showEpidModal && selectedServiceForReview && (
+        <EpidPromptModal 
+          onClose={() => {
+            setShowEpidModal(false);
+            setSelectedServiceForReview(null);
+          }} 
+          onSubmit={(epid) => updateStatus(selectedServiceForReview, 'Work Initiated', epid)} 
+        />
+      )}
     </div>
   );
 };
@@ -279,6 +305,46 @@ const AddServiceModal = ({ onClose, onAdd, people }) => {
             <button type="submit" disabled={loading} className="btn-primary w-24 flex justify-center">
               {loading ? <div className="animate-spin h-5 w-5 border-b-2 border-white rounded-full"></div> : 'Save'}
             </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const EpidPromptModal = ({ onClose, onSubmit }) => {
+  const [epid, setEpid] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!epid.trim()) return;
+    onSubmit(epid.trim());
+  };
+
+  return (
+    <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex justify-center items-center p-4 animate-in fade-in">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all">
+        <div className="px-6 py-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+          <h3 className="text-lg font-medium text-white">Enter Government EPID</h3>
+          <button onClick={onClose} className="text-zinc-600 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-sm text-zinc-400">An EPID is mandatory before sending this file for review. Please provide the EPID assigned by the government.</p>
+          <div>
+            <label className="label-text">EPID Number *</label>
+            <input 
+              type="text" 
+              required 
+              autoFocus
+              className="input-field font-mono" 
+              placeholder="Ex: EPID-2026-XYZ"
+              value={epid} 
+              onChange={e => setEpid(e.target.value)}
+            />
+          </div>
+          <div className="pt-4 flex justify-end space-x-3 border-t border-zinc-800">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="submit" disabled={!epid.trim()} className="btn-primary w-24">Confirm</button>
           </div>
         </form>
       </div>
